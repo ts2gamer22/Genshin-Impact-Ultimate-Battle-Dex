@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genshin Ultimate Battle Dex</title>
+    <style>
+        /* CSS Styles (Adjusted Controls, Added Instructions Modal) */
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #2c3e50; color: #ecf0f1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; padding: 10px; }
+        #game-container { background-color: #34495e; padding: 20px; border-radius: 10px; box-shadow: 0 0 15px rgba(0, 0, 0, 0.5); width: 95%; max-width: 900px; text-align: center; margin-top: 10px; }
+        h1 { margin-top: 0; color: #f1c40f; }
+
+        /* Instructions Modal */
+        #instructions-modal {
+            display: none; /* Hidden by default */
+            position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.7);
+            justify-content: center; align-items: center;
+        }
+        #instructions-modal.visible { display: flex; }
+        .instructions-modal-content {
+            background-color: #34495e; margin: auto; padding: 25px;
+            border: 1px solid #7f8c8d; width: 90%; max-width: 650px; /* Wider for instructions */
+            border-radius: 10px; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            color: #ecf0f1; max-height: 80vh; overflow-y: auto; /* Scrollable */
+        }
+        .instructions-modal-close-button {
+            position: absolute; top: 10px; right: 15px; color: #bdc3c7;
+            font-size: 28px; font-weight: bold; cursor: pointer;
+        }
+        .instructions-modal-close-button:hover, .instructions-modal-close-button:focus { color: #fff; text-decoration: none; }
+        .instructions-modal-content h2 { margin-top: 0; color: #1abc9c; text-align: center; border-bottom: 1px solid #7f8c8d; padding-bottom: 10px; margin-bottom: 15px; }
+        .instructions-modal-content h3 { color: #f1c40f; margin-top: 15px; margin-bottom: 5px; font-size: 1.1em; }
+        .instructions-modal-content p, .instructions-modal-content ul { margin-bottom: 10px; line-height: 1.5; color: #ecf0f1; text-align: left; }
+        .instructions-modal-content ul { padding-left: 20px; }
+        .instructions-modal-content li { margin-bottom: 5px; }
+        .instructions-modal-content strong { color: #e67e22; }
+        /* End Instructions Modal */
+
+        /* Character Selection / Index Area */
+        #character-selection-index-area { /* Wrapper */ }
+
+        #character-selection-area { display: block; }
+        #character-index-area { display: none; }
+
+        #character-selection-controls {
+            display: flex; justify-content: space-between; /* Align items */
+            align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;
+        }
+        #character-selection-controls h2 { margin: 0; flex-grow: 1; text-align: left; /* Allow title to take space */ }
+        .controls-buttons-group { display: flex; gap: 10px; /* Group the buttons */ }
+         #instructions-button, #selection-view-toggle-button, #index-view-toggle-button {
+             padding: 8px 15px; font-size: 0.9em; cursor: pointer; background-color: #95a5a6; color: white; border: none; border-radius: 5px; transition: background-color 0.2s; white-space: nowrap; /* Prevent wrapping */
+         }
+         #instructions-button:hover, #selection-view-toggle-button:hover, #index-view-toggle-button:hover { background-color: #7f8c8d; }
+         #character-selection-controls p { margin: 0 10px 0 0; /* Adjust margin for selected count */ }
+
+
+        #character-selection-grid, #character-index-grid {
+             display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-top: 5px; max-height: 45vh; overflow-y: auto; padding: 10px; background-color: #2c3e50; border-radius: 5px;
+         }
+
+        .selection-card, .index-card {
+            border: 2px solid #95a5a6; border-radius: 8px; padding: 8px; aspect-ratio: 2 / 3; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; display: flex; flex-direction: column; align-items: center; justify-content: space-between; position: relative; color: #ecf0f1; font-weight: bold; background-color: #7f8c8d; overflow: hidden;
+        }
+        .selection-card:hover, .index-card:hover { transform: scale(1.05); border-color: #ecf0f1; }
+
+        /* Selection Specific */
+        .selection-card.selected { border-color: #f1c40f; transform: scale(0.95); opacity: 0.7; cursor: not-allowed; }
+        /* Ensure image and name are hidden initially */
+        .selection-card img { display: none; width: 90%; max-height: 60%; object-fit: contain; margin-bottom: 4px; }
+        .selection-card span.char-name { display: none; font-size: 0.75em; margin-top: 4px; }
+        /* Reveal on .revealed class */
+        .selection-card.revealed img, .selection-card.revealed span.char-name { display: block; }
+        /* Ensure '?' is shown initially and hidden when revealed */
+        .selection-card .card-back-text { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 1.6em; }
+        .selection-card.revealed .card-back-text { display: none; }
+
+        /* Index Specific - Enhanced */
+        .index-card { background-color: #4a6572; border-color: #7f8c8d; justify-content: flex-start; }
+        .index-card img { display: block; width: 100%; height: 60%; object-fit: cover; margin-bottom: 5px; background-color: #eee; border-radius: 3px 3px 0 0; }
+        .index-card .index-info { width: 100%; padding: 0 3px; display: flex; flex-direction: column; align-items: center; flex-grow: 1; }
+        .index-card span.char-name { display: block; font-size: 0.75em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .index-card .index-details { font-size: 0.65em; color: #bdc3c7; width: 100%; text-align: center; margin-top: auto; }
+        .index-card .rarity-stars { color: #f1c40f; font-size: 0.8em; display: block; margin-bottom: 2px; }
+        .index-card .weapon-icon { margin-right: 3px; }
+
+         /* Index Element Colors */
+        .index-card.element-pyro { background-color: #bf6f6f; border-color: #e74c3c; } .index-card.element-hydro { background-color: #6f94bf; border-color: #3498db; } .index-card.element-anemo { background-color: #6fbfb1; border-color: #1abc9c; } .index-card.element-electro { background-color: #a36fbf; border-color: #9b59b6; } .index-card.element-dendro { background-color: #87bf6f; border-color: #2ecc71; } .index-card.element-cryo { background-color: #6fb1bf; border-color: #34c6e7; } .index-card.element-geo { background-color: #bfac6f; border-color: #f1c40f; }
+
+        .selection-buttons { display: flex; gap: 10px; margin-top: 15px; justify-content: center; flex-wrap: wrap;}
+        #start-battle-button { padding: 12px 25px; font-size: 1.1em; cursor: pointer; background-color: #27ae60; color: white; border: none; border-radius: 5px; transition: background-color 0.2s; }
+        #start-battle-button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        #start-battle-button:not(:disabled):hover { background-color: #2ecc71; }
+        #reset-selection-button { padding: 10px 15px; font-size: 0.9em; cursor: pointer; background-color: #f39c12; color: white; border: none; border-radius: 5px; transition: background-color 0.2s; }
+        #reset-selection-button:hover { background-color: #e67e22; }
+
+        /* Battle Area Styles */
+        #battle-area { display: none; margin-top: 20px; }
+        #battle-info-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 0.9em; color: #bdc3c7; flex-wrap: wrap; gap: 10px;}
+        #round-indicator { font-weight: bold; color: #f1c40f;}
+        #wildcard-count-display { font-weight: bold; color: #e67e22;} /* Now shows both counts */
+        .team-display { display: flex; justify-content: space-around; margin-bottom: 20px; padding: 10px; background-color: rgba(0, 0, 0, 0.2); border-radius: 8px; flex-wrap: wrap; gap: 5px;}
+        .battle-character-card { border: 2px solid #7f8c8d; border-radius: 8px; padding: 5px; text-align: center; background-color: #506880; width: 100px; transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s; position: relative; display: flex; flex-direction: column; cursor: pointer; }
+        .battle-character-card:hover { border-color: #ecf0f1; }
+        .battle-character-card.active-turn { border-color: #3498db; box-shadow: 0 0 12px #3498db; transform: scale(1.08); }
+        .battle-character-card.boosted { box-shadow: 0 0 10px #e67e22; border-color: #e67e22;}
+        .battle-character-card.defeated { opacity: 0.4; filter: grayscale(100%); border-color: #c0392b; cursor: default; }
+        .battle-character-card.defeated:hover { border-color: #c0392b; }
+        .battle-character-card img { width: 60px; height: 60px; object-fit: contain; border-radius: 50%; background-color: #ecf0f1; margin-bottom: 3px; align-self: center; }
+        .battle-character-card .char-name { font-size: 0.8em; font-weight: bold; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hp-bar-container { background-color: #7f8c8d; border-radius: 5px; height: 10px; overflow: hidden; margin-bottom: 3px; }
+        .hp-bar { background-color: #2ecc71; height: 100%; width: 100%; transition: width 0.3s ease; }
+        .hp-bar.low { background-color: #f39c12; } .hp-bar.critical { background-color: #e74c3c; }
+        .hp-text { font-size: 0.75em; font-weight: bold; }
+        .defense-boost-indicator, .attack-boost-indicator, .action-bubble { position: absolute; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 0.7em; font-weight: bold; line-height: 18px; text-align: center; box-shadow: 0 0 5px black; z-index: 1; }
+        .defense-boost-indicator { top: -5px; right: -5px; background-color: #3498db; display: none;}
+        .battle-character-card.defending .defense-boost-indicator { display: block; }
+        .attack-boost-indicator { top: -5px; left: -5px; background-color: #e67e22; display: none;}
+        .battle-character-card.boosted .attack-boost-indicator { display: block; }
+        .action-bubble { bottom: 5px; left: 50%; transform: translateX(-50%); width: auto; min-width: 60px; max-width: 90%; height: auto; border-radius: 5px; padding: 2px 5px; font-size: 0.65em; line-height: 1.2; background-color: rgba(0, 0, 0, 0.75); border: 1px solid #bdc3c7; color: #ecf0f1; display: none; white-space: nowrap; }
+        .ability-indicator { font-size: 0.65em; font-weight: bold; color: #f1c40f; background-color: rgba(44, 62, 80, 0.7); padding: 1px 3px; border-radius: 3px; margin-top: auto; border: 1px solid #f1c40f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; align-self: center; }
+        .ability-indicator.none {color: #7f8c8d; border-color: #7f8c8d;}
+        .ability-indicator.used { filter: grayscale(80%); border-color: #7f8c8d; color: #95a5a6;}
+
+        .vs-separator { font-size: 2em; font-weight: bold; margin: 10px 0; color: #e74c3c; }
+        #control-buttons-area { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; gap: 10px; flex-wrap: wrap; }
+        #action-buttons { display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; flex-grow: 1; }
+        #action-buttons button { padding: 8px 10px; font-size: 0.8em; cursor: pointer; border: none; border-radius: 5px; color: white; min-width: 75px; transition: background-color 0.2s, transform 0.1s; }
+        #action-buttons button:hover:not(:disabled) { transform: translateY(-2px); }
+        #action-buttons button:disabled { background-color: #7f8c8d; cursor: not-allowed; opacity: 0.6; }
+        #btn-high-attack { background-color: #e74c3c; } #btn-high-attack:hover:not(:disabled) { background-color: #c0392b; } #btn-low-attack { background-color: #f39c12; } #btn-low-attack:hover:not(:disabled) { background-color: #d35400; } #btn-defend { background-color: #3498db; } #btn-defend:hover:not(:disabled) { background-color: #2980b9; } #btn-heal { background-color: #27ae60; } #btn-heal:hover:not(:disabled) { background-color: #1f8b4c; } #btn-attack-all { background-color: #c0392b; } #btn-attack-all:hover:not(:disabled) { background-color: #a53125; } #btn-heal-all { background-color: #1abc9c; } #btn-heal-all:hover:not(:disabled) { background-color: #16a085; }
+        #auto-mode-button { padding: 8px 10px; font-size: 0.8em; cursor: pointer; border: 1px solid #1abc9c; border-radius: 5px; background-color: transparent; color: #1abc9c; transition: background-color 0.2s, color 0.2s; }
+        #auto-mode-button.active { background-color: #1abc9c; color: #2c3e50; font-weight: bold; }
+        #auto-mode-button:disabled { border-color: #7f8c8d; color: #7f8c8d; cursor: not-allowed; }
+
+        /* Wildcard Choice Area */
+        #wildcard-choice-area { display: none; margin-top: 10px; padding: 10px; background-color: rgba(0,0,0,0.4); border-radius: 5px; }
+        #wildcard-choice-area p { margin: 0 0 10px 0; font-weight: bold; }
+        #wildcard-choice-area button { padding: 8px 12px; font-size: 0.9em; margin: 5px 5px; cursor: pointer; border-radius: 4px; border: none; color: white; }
+        #btn-wildcard-add { background-color: #2980b9; } #btn-wildcard-add:hover:not(:disabled) { background-color: #3498db; } #btn-wildcard-add:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        #btn-wildcard-boost-atk { background-color: #d35400; } #btn-wildcard-boost-atk:hover:not(:disabled) { background-color: #e67e22; } #btn-wildcard-boost-atk:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        #btn-wildcard-boost-hp { background-color: #27ae60; } #btn-wildcard-boost-hp:hover:not(:disabled) { background-color: #2ecc71; } #btn-wildcard-boost-hp:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        .wildcard-boost-selection { display: inline-block; margin-left: 5px; }
+        .wildcard-boost-selection select { padding: 5px; font-size: 0.9em; margin-left: 5px; }
+
+        /* Game Log */
+        #game-log { margin-top: 20px; background-color: rgba(0, 0, 0, 0.3); padding: 10px; border-radius: 5px; height: 120px; overflow-y: auto; text-align: left; font-size: 0.9em; line-height: 1.4; }
+        #game-log p { margin: 0 0 5px 0; }
+        #game-log .player-action { color: #3498db; } #game-log .opponent-action { color: #e74c3c; } #game-log .heal-action { color: #2ecc71; } #game-log .defense-action { color: #f1c40f; } #game-log .info-action { color: #bdc3c7; } #game-log .turn-change { color: #9b59b6; font-style: italic; } #game-log .ability-proc { color: #f1c40f; font-weight: bold; } #game-log .wildcard-info { color: #e67e22; font-weight: bold; } #game-log .round-start { color: #1abc9c; font-weight: bold; }
+
+        /* Game Over Message */
+        #game-over-message { display: none; margin-top: 20px; font-size: 1.5em; font-weight: bold; }
+        #game-over-message.win { color: #2ecc71; } #game-over-message.lose { color: #e74c3c; }
+        #restart-button { display: none; padding: 12px 25px; font-size: 1.1em; margin-top: 15px; cursor: pointer; background-color: #9b59b6; color: white; border: none; border-radius: 5px; transition: background-color 0.2s; }
+        #restart-button:hover { background-color: #8e44ad; }
+        #loading-message { font-size: 1.2em; color: #bdc3c7; margin-top: 20px; }
+
+        /* Stat Modal */
+        #stat-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+        #stat-modal.visible { display: flex; }
+        .stat-modal-content { background-color: #34495e; margin: auto; padding: 25px; border: 1px solid #7f8c8d; width: 90%; max-width: 450px; border-radius: 10px; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.4); color: #ecf0f1;}
+        .stat-modal-close-button { position: absolute; top: 10px; right: 15px; color: #bdc3c7; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .stat-modal-close-button:hover, .stat-modal-close-button:focus { color: #fff; text-decoration: none; }
+        .stat-modal-content h3 { margin-top: 0; color: #f1c40f; border-bottom: 1px solid #7f8c8d; padding-bottom: 10px; margin-bottom: 15px; }
+         .stat-modal-content .modal-subtitle { font-size: 0.8em; color: #bdc3c7; margin-bottom: 15px; display: block; text-align: center; }
+        .stat-modal-content p { margin: 8px 0; font-size: 0.95em; }
+        .stat-modal-content strong { color: #bdc3c7; min-width: 100px; display: inline-block;}
+        .stat-modal-content .ability-name { font-weight: bold; color: #f1c40f; }
+        .stat-modal-content .ability-desc { font-size: 0.9em; color: #bdc3c7; margin-left: 10px;}
+
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Genshin Ultimate Battle Dex</h1>
+        <div id="loading-message">Loading character data...</div>
+
+        <!-- Instructions Modal (Initially Hidden) -->
+        <div id="instructions-modal">
+            <div class="instructions-modal-content">
+                <span class="instructions-modal-close-button">&times;</span>
+                <h2>How to Play</h2>
+                <ul>
+                    <li>**Goal:** Defeat all 4 opponent characters before they defeat yours.</li>
+                    <li>**Team Selection:** Choose 4 characters from the grid. Click "Start Battle" when ready. Use "Reset Selection" to choose again. Click "View Index" to see all characters and their base info.</li>
+                    <li>**Turns:** Battle progresses in pairs. Your character at index 1 acts, then the opponent at index 1 acts. Then index 2, and so on. After index 4, a new Round begins.</li>
+                    <li>**Actions:** On your character's turn (if not in Auto Mode), choose an action:
+                        <ul>
+                            <li><strong>High/Low Attack:</strong> Attack the opposing character in the same position (or the next available one).</li>
+                            <li><strong>Defend:</strong> Reduce damage taken from the next attack.</li>
+                            <li><strong>Heal:</strong> Restore HP to the acting character.</li>
+                            <li><strong>Attack ALL:</strong> Attack all living opponents with slightly modified damage. (Limit: Once per team per Round)</li>
+                            <li><strong>Heal ALL:</strong> Heal all living teammates with modified power. (Limit: Once per team per Round)</li>
+                        </ul>
+                    </li>
+                    <li>**Auto Mode:** Click "Auto Mode" for the AI to control your team's actions. Click again to disable.</li>
+                </ul>
+                <h3>Special Abilities (Randomly Assigned at Start)</h3>
+                <ul>
+                    <li><strong>Vitality:</strong> Character starts with +150 Maximum HP.</li>
+                    <li><strong>Fury:</strong> Character gains +20 permanent base Attack (Low & High).</li>
+                    <li><strong>Guardian:</strong> When this character takes damage (and survives), a random living teammate is healed for 10 HP.</li>
+                    <li><strong>Revival:</strong> The first time this character is defeated, they revive immediately with 30% of their Max HP. (One time use)</li>
+                </ul>
+                <h3>Wildcards (3 per Team for the entire battle)</h3>
+                <ul>
+                    <li>When a character is permanently defeated (Revival doesn't trigger or was used), you get a choice (if your team has wildcards remaining):
+                        <ul>
+                            <li><strong>Add New Character:</strong> Replace the defeated character with a random one from the pool (no ability).</li>
+                            <li><strong>Boost Atk:</strong> Choose a living teammate to gain +20 Attack for 3 Rounds.</li>
+                            <li><strong>Boost HP:</strong> Choose a living teammate to gain +45 Max HP and Current HP.</li>
+                        </ul>
+                    </li>
+                    <li>The opponent AI also gets 3 Wildcards and will choose randomly when one of their characters is permanently defeated.</li>
+                    <li>A message "WILD CARD USED" will appear in the log after a choice is made.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Character Selection / Index Area -->
+        <div id="character-selection-index-area">
+            <div id="character-selection-area">
+                <div id="character-selection-controls">
+                    <h2>Select Your Team (Choose 4)</h2>
+                    <div class="controls-buttons-group">
+                        <button id="instructions-button">How to Play</button> <!-- Added Button -->
+                        <button id="selection-view-toggle-button">View Index</button>
+                    </div>
+                    <p><span id="selected-count">0</span> / 4 selected</p>
+                </div>
+                <div id="character-selection-grid"></div>
+                <div class="selection-buttons">
+                     <button id="reset-selection-button">Reset Selection</button>
+                     <button id="start-battle-button" disabled>Start Battle</button>
+                </div>
+            </div>
+
+            <div id="character-index-area">
+                 <div id="character-selection-controls">
+                     <h2>Character Index</h2>
+                     <div class="controls-buttons-group">
+                         <button id="instructions-button-idx">How to Play</button> <!-- Added Button (for consistency) -->
+                         <button id="index-view-toggle-button">Select Team</button>
+                     </div>
+                     <p>Click card for example stats</p>
+                 </div>
+                 <div id="character-index-grid"></div>
+            </div>
+        </div>
+
+
+        <!-- Battle Screen -->
+        <div id="battle-area">
+            <div id="battle-info-bar">
+                <span id="round-indicator">Round: 1</span>
+                <!-- Updated Wildcard Display -->
+                <span id="wildcard-count-display">Wildcards: P: 3 | O: 3</span>
+            </div>
+            <div id="opponent-team-display" class="team-display"></div>
+            <div class="vs-separator">VS</div>
+            <div id="player-team-display" class="team-display"></div>
+            <div id="control-buttons-area">
+                <div id="action-buttons">
+                    <button id="btn-high-attack">High Attack</button>
+                    <button id="btn-low-attack">Low Attack</button>
+                    <button id="btn-defend">Defend</button>
+                    <button id="btn-heal">Heal</button>
+                    <button id="btn-attack-all">Attack ALL</button>
+                    <button id="btn-heal-all">Heal ALL</button>
+                </div>
+                <button id="auto-mode-button">Auto Mode: OFF</button>
+            </div>
+            <div id="wildcard-choice-area">
+                <p>Character defeated! (<span id="wildcard-choice-count">X</span> Wildcards left):</p>
+                <button id="btn-wildcard-add">Add New Character (No Ability)</button>
+                <span class="wildcard-boost-selection">Boost Atk: <select id="boost-atk-target-select"></select>
+                    <button id="btn-wildcard-boost-atk">Confirm Atk Boost</button>
+                </span>
+                <span class="wildcard-boost-selection">Boost HP: <select id="boost-hp-target-select"></select>
+                    <button id="btn-wildcard-boost-hp">Confirm HP Boost</button>
+                </span>
+            </div>
+            <div id="game-log"></div>
+        </div>
+
+        <!-- Game Over Area -->
+        <div id="game-over-message">Game Over Text</div>
+        <button id="restart-button">Play Again?</button>
+
+        <!-- Stat Modal -->
+        <div id="stat-modal">
+            <div class="stat-modal-content">
+                <span class="stat-modal-close-button">&times;</span>
+                <h3 id="stat-modal-name">Character Name</h3>
+                 <p class="modal-subtitle" id="stat-modal-subtitle"></p>
+                <p><strong>Element:</strong> <span id="stat-modal-element"></span></p>
+                <p><strong>HP:</strong> <span id="stat-modal-hp"></span></p>
+                <p><strong>Attack:</strong> <span id="stat-modal-attack"></span></p>
+                <p><strong>Defense:</strong> <span id="stat-modal-defense"></span></p>
+                <p><strong>Heal Power:</strong> <span id="stat-modal-heal"></span></p>
+                <p><strong>Ability:</strong> <span id="stat-modal-ability-name" class="ability-name"></span> - <span id="stat-modal-ability-desc" class="ability-desc"></span></p>
+                 <p><strong>Attack Boost:</strong> <span id="stat-modal-atk-boost"></span></p>
+                 <p><strong>Defense Boost:</strong> <span id="stat-modal-def-boost"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const API_BASE_URL = 'https://genshin.jmp.blue'; const PLAYER_TEAM_SIZE = 4; const AUTO_MODE_DELAY = 750; const AOE_DAMAGE_MODIFIER = 1.0; const AOE_HEAL_MULTIPLIER = 1.5; const BOOST_ATTACK_AMOUNT = 20; const BOOST_HP_AMOUNT = 45; const BOOST_DURATION = 3; const TOTAL_WILDCARDS = 3; // Per team
+        const BUBBLE_DURATION = 2500;
+        const ABILITIES = { VITALITY: { name: 'Vitality', description: '+150 Max HP' }, FURY: { name: 'Fury', description: '+20 Base Attack' }, GUARDIAN: { name: 'Guardian', description: 'On hit, heal living ally 10 HP' }, REVIVAL: { name: 'Revival', description: 'Revive once with 30% HP' } }; const ABILITY_KEYS = Object.keys(ABILITIES); const GUARDIAN_HEAL_AMOUNT = 10; const REVIVAL_HP_PERCENT = 0.3;
+
+        // DOM Elements
+        const loadingMessage = document.getElementById('loading-message'); const selectionIndexArea = document.getElementById('character-selection-index-area'); const selectionArea = document.getElementById('character-selection-area'); const indexArea = document.getElementById('character-index-area'); const selectionGrid = document.getElementById('character-selection-grid'); const indexGrid = document.getElementById('character-index-grid'); const selectedCountSpan = document.getElementById('selected-count'); const startBattleButton = document.getElementById('start-battle-button'); const resetSelectionButton = document.getElementById('reset-selection-button');
+        const instructionsButton = document.getElementById('instructions-button'); // New
+        const instructionsButtonIdx = document.getElementById('instructions-button-idx'); // New (for index view)
+        const instructionsModal = document.getElementById('instructions-modal'); // New
+        const instructionsModalClose = instructionsModal.querySelector('.instructions-modal-close-button'); // New
+        const selectionViewToggleButton = document.getElementById('selection-view-toggle-button'); const indexViewToggleButton = document.getElementById('index-view-toggle-button');
+        const battleArea = document.getElementById('battle-area'); const roundIndicator = document.getElementById('round-indicator'); const wildcardCountDisplaySpan = document.getElementById('wildcard-count-display'); // Renamed for clarity
+        const playerTeamDisplay = document.getElementById('player-team-display'); const opponentTeamDisplay = document.getElementById('opponent-team-display'); const actionButtonsContainer = document.getElementById('action-buttons'); const btnAttackAll = document.getElementById('btn-attack-all'); const btnHealAll = document.getElementById('btn-heal-all'); const autoModeButton = document.getElementById('auto-mode-button'); const wildcardChoiceArea = document.getElementById('wildcard-choice-area'); const wildcardChoiceCount = document.getElementById('wildcard-choice-count'); const btnWildcardAdd = document.getElementById('btn-wildcard-add'); const btnWildcardBoostAtk = document.getElementById('btn-wildcard-boost-atk'); const btnWildcardBoostHp = document.getElementById('btn-wildcard-boost-hp'); const boostAtkTargetSelect = document.getElementById('boost-atk-target-select'); const boostHpTargetSelect = document.getElementById('boost-hp-target-select'); const wildcardBoostAtkSelectionSpan = boostAtkTargetSelect.parentElement; const wildcardBoostHpSelectionSpan = boostHpTargetSelect.parentElement; const gameLog = document.getElementById('game-log'); const gameOverMessage = document.getElementById('game-over-message'); const restartButton = document.getElementById('restart-button'); const statModal = document.getElementById('stat-modal'); const statModalCloseButton = statModal.querySelector('.stat-modal-close-button'); const statModalSubtitle = document.getElementById('stat-modal-subtitle');
+        // const instructionsArea = document.getElementById('instructions-area'); // Removed
+
+        // Game State
+        let gameState = 'LOADING'; let characterPool = []; let playerTeam = []; let opponentTeam = []; let activePairIndex = 0; let isPlayerCharacterTurn = true; let isAutoMode = false; let logMessages = []; let autoModeTimeoutId = null; let currentRound = 1; let playerAoEUsedThisCycle = false; let opponentAoEUsedThisCycle = false; let wildcardDecisionPending = false; let wildcardTeamRef = null; let wildcardDefeatedIndex = -1;
+        let playerWildcardsRemaining = TOTAL_WILDCARDS; // New
+        let opponentWildcardsRemaining = TOTAL_WILDCARDS; // New
+        let bubbleTimeoutIds = {}; let isIndexViewVisible = false;
+
+        // --- Utility: Sleep & Shuffle ---
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)); function shuffleArray(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } return array; }
+
+        // --- API Fetching ---
+        async function loadCharacterData() {
+            gameState = 'LOADING'; updateUI(); try { const response = await fetch(`${API_BASE_URL}/characters/all?lang=en`); if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`); const allData = await response.json(); if (!Array.isArray(allData)) throw new Error("Invalid API response format"); characterPool = allData.filter(c => c.id && c.name && c.rarity); if (characterPool.length < PLAYER_TEAM_SIZE * 2 + TOTAL_WILDCARDS * 2 + 2) { // Adjusted check for replacements
+                console.warn("Pool size might be small for replacements"); if(characterPool.length < PLAYER_TEAM_SIZE * 2) throw new Error("Not enough valid character data from API."); } logMessage(`Loaded ${characterPool.length} characters from API.`, 'info-action'); setGameState('CHARACTER_SELECTION'); } catch (error) { console.error("Failed to load character data:", error); loadingMessage.textContent = `Error loading data: ${error.message}. Please refresh.`; }
+        }
+
+        // --- Stat Generation ---
+        function generateStats(character, assignedAbility = null) { const baseHp = 50; const baseAtk = 7; const baseDef = 3; const baseHeal = 9; const rarityMultiplier = character.rarity === 5 ? 1.30 : 1.0; const randFactor = () => 0.9 + Math.random() * 0.2; character.ability = assignedAbility; character.revivalUsed = false; let calculatedMaxHp = Math.round((baseHp + Math.random() * 15) * rarityMultiplier * randFactor()); let calculatedHighAtk = Math.round((baseAtk + 2 + Math.random() * 3) * rarityMultiplier * randFactor()); let calculatedLowAtk = Math.round((baseAtk - 2 + Math.random() * 3) * rarityMultiplier * randFactor()); let calculatedDefense = Math.round((baseDef + Math.random() * 2) * rarityMultiplier * randFactor()); let calculatedHealPower = Math.round((baseHeal + Math.random() * 4) * rarityMultiplier * randFactor()); if (character.ability === 'VITALITY') { calculatedMaxHp += 150; } else if (character.ability === 'FURY') { calculatedHighAtk += BOOST_ATTACK_AMOUNT; calculatedLowAtk += BOOST_ATTACK_AMOUNT; } character.maxHp = calculatedMaxHp; character.currentHp = character.maxHp; character.highAtk = Math.max(1, calculatedHighAtk); character.lowAtk = Math.max(1, calculatedLowAtk); character.highAtk = Math.max(character.lowAtk + 1, character.highAtk); character.defense = Math.max(1, calculatedDefense); character.healPower = Math.max(4, calculatedHealPower); character.isDefending = false; character.tempDefense = 0; character.tempAttackBoost = 0; character.boostTurnsRemaining = 0; }
+        function generateExampleStats(characterData) { const baseHp = 50; const baseAtk = 7; const baseDef = 3; const baseHeal = 9; const rarityMultiplier = characterData.rarity === 5 ? 1.30 : 1.0; const randFactor = () => 0.9 + Math.random() * 0.2; const stats = {}; stats.maxHp = Math.round((baseHp + Math.random() * 15) * rarityMultiplier * randFactor()); stats.highAtk = Math.round((baseAtk + 2 + Math.random() * 3) * rarityMultiplier * randFactor()); stats.lowAtk = Math.round((baseAtk - 2 + Math.random() * 3) * rarityMultiplier * randFactor()); stats.defense = Math.round((baseDef + Math.random() * 2) * rarityMultiplier * randFactor()); stats.healPower = Math.round((baseHeal + Math.random() * 4) * rarityMultiplier * randFactor()); stats.lowAtk = Math.max(1, stats.lowAtk); stats.highAtk = Math.max(stats.lowAtk + 1, stats.highAtk); stats.defense = Math.max(1, stats.defense); stats.healPower = Math.max(4, stats.healPower); stats.currentHp = stats.maxHp; return stats; }
+
+        // --- Character Selection & Index View ---
+        function setupCharacterSelection() {
+            selectionGrid.innerHTML = '';
+            playerTeam = [];
+            updateSelectedCount();
+            startBattleButton.disabled = true;
+            characterPool.sort((a,b) => (b.rarity - a.rarity) || a.name.localeCompare(b.name));
+            characterPool.forEach(char => {
+                const card = document.createElement('div');
+                card.classList.add('selection-card');
+                card.dataset.charId = char.id;
+                const iconUrl = `${API_BASE_URL}/characters/${char.id}/icon`;
+                // Structure ensures '?' is visible by default due to CSS
+                card.innerHTML = `
+                    <span class="card-back-text">?</span>
+                    <img src="${iconUrl}" alt="${char.name}" loading="lazy" onerror="this.style.display='none'; this.parentElement.querySelector('.card-back-text').style.display='flex';">
+                    <span class="char-name">${char.name} (${char.rarity}*)</span>`;
+                card.addEventListener('click', () => selectCharacter(char, card));
+                card.style.cursor = 'pointer'; // Ensure cursor is pointer initially
+                selectionGrid.appendChild(card);
+            });
+            resetSelectionButton.style.display = 'inline-block';
+            startBattleButton.style.display = 'inline-block';
+        }
+        function selectCharacter(character, cardElement) {
+            if (playerTeam.length >= PLAYER_TEAM_SIZE || cardElement.classList.contains('selected')) return;
+            playerTeam.push(character);
+            cardElement.classList.add('selected', 'revealed'); // Add revealed class here
+            updateSelectedCount();
+            if (playerTeam.length === PLAYER_TEAM_SIZE) {
+                startBattleButton.disabled = false;
+                selectionGrid.querySelectorAll('.selection-card:not(.selected)').forEach(card => card.style.cursor = 'not-allowed');
+            }
+        }
+        function updateSelectedCount() { selectedCountSpan.textContent = playerTeam.length; }
+        function resetSelection() {
+            playerTeam = []; updateSelectedCount(); startBattleButton.disabled = true;
+            selectionGrid.querySelectorAll('.selection-card').forEach(card => {
+                card.classList.remove('selected', 'revealed'); // Remove revealed class
+                card.style.cursor = 'pointer';
+                // CSS handles hiding/showing based on presence of 'revealed' class
+            });
+            logMessage("Selection reset.", "info-action");
+        }
+        function toggleIndexView(showIndex) { isIndexViewVisible = showIndex; updateUI(); }
+        function populateCharacterIndex() {
+             indexGrid.innerHTML = '';
+             characterPool.forEach((char, index) => {
+                 const card = document.createElement('div');
+                 card.classList.add('index-card');
+                 if (char.vision) { card.classList.add(`element-${char.vision.toLowerCase()}`); }
+                 card.dataset.charIndex = index;
+                 const iconUrl = `${API_BASE_URL}/characters/${char.id}/icon`;
+                 const rarityStars = '★'.repeat(char.rarity || 0);
+                 card.innerHTML = `
+                     <img src="${iconUrl}" alt="${char.name}" loading="lazy" onerror="this.style.backgroundColor='#aaa'; this.alt='Img Failed';">
+                     <div class="index-info">
+                         <span class="char-name">${char.name}</span>
+                         <div class="index-details">
+                             <span class="rarity-stars">${rarityStars}</span>
+                             <span>${char.vision || 'N/A'}</span> |
+                             <span class="weapon-icon">${char.weapon || 'N/A'}</span>
+                         </div>
+                     </div>`;
+                 card.addEventListener('click', () => showStatsModalFromIndex(index));
+                 indexGrid.appendChild(card);
+             });
+         }
+        // --- Instructions Modal ---
+        function showInstructionsModal() { instructionsModal.classList.add('visible'); }
+        function hideInstructionsModal() { instructionsModal.classList.remove('visible'); }
+
+        // --- Game Start & Reset ---
+        function startGame() {
+            if (playerTeam.length !== PLAYER_TEAM_SIZE) return;
+            logMessages = []; opponentTeam = [];
+            const currentTeamIds = playerTeam.map(c => c.id);
+            let availableOpponents = characterPool.filter(c => !currentTeamIds.includes(c.id));
+            let shuffledOpponents = shuffleArray([...availableOpponents]);
+            for (let i = 0; i < PLAYER_TEAM_SIZE; i++) {
+                if (shuffledOpponents.length > i) {
+                     opponentTeam.push({...shuffledOpponents[i]});
+                } else {
+                     // Fallback if pool is too small (should be rare with the adjusted check)
+                     const fallbackPool = characterPool.filter(c => !currentTeamIds.includes(c.id) && !opponentTeam.some(o => o.id === c.id));
+                     opponentTeam.push({...fallbackPool[Math.floor(Math.random()*fallbackPool.length)], id: `fallback-${i}`});
+                }
+            }
+            let playerAbilities = shuffleArray([...ABILITY_KEYS]);
+            let opponentAbilities = shuffleArray([...ABILITY_KEYS]);
+            playerTeam.forEach((char, index) => generateStats(char, playerAbilities[index]));
+            opponentTeam.forEach((char, index) => generateStats(char, opponentAbilities[index]));
+            playerTeam.forEach(c => logMessage(`Player ${c.name} has ${ABILITIES[c.ability]?.name || 'None'}.`, 'info-action'));
+            opponentTeam.forEach(c => logMessage(`Opponent ${c.name} has ${ABILITIES[c.ability]?.name || 'None'}.`, 'info-action'));
+            activePairIndex = 0; isPlayerCharacterTurn = true; isAutoMode = false; updateAutoModeButton(); playerAoEUsedThisCycle = false; opponentAoEUsedThisCycle = false; wildcardDecisionPending = false;
+            playerWildcardsRemaining = TOTAL_WILDCARDS; // Reset player count
+            opponentWildcardsRemaining = TOTAL_WILDCARDS; // Reset opponent count
+            currentRound = 1; logMessage(`Round ${currentRound} Start! Player's Turn.`, "round-start"); setGameState('BATTLE'); prepareNextTurn();
+         }
+        function resetGame() {
+            if (autoModeTimeoutId) clearTimeout(autoModeTimeoutId); autoModeTimeoutId = null;
+            isAutoMode = false; wildcardDecisionPending = false; playerTeam = []; opponentTeam = []; logMessages = []; gameOverMessage.textContent = '';
+            playerWildcardsRemaining = TOTAL_WILDCARDS; // Reset player count
+            opponentWildcardsRemaining = TOTAL_WILDCARDS; // Reset opponent count
+            currentRound = 1; toggleIndexView(false); setGameState('CHARACTER_SELECTION');
+        }
+
+        // --- Battle Logic ---
+        function findNextLivingIndex(team, startIndex) { for (let i = 0; i < team.length; i++) { const checkIndex = (startIndex + i) % team.length; if (team[checkIndex] && team[checkIndex].currentHp > 0) { return checkIndex; } } return -1; }
+        function prepareNextTurn() { if (wildcardDecisionPending || gameState !== 'BATTLE') return; updateBattleUI(); if (checkGameOver()) return; if (autoModeTimeoutId) { clearTimeout(autoModeTimeoutId); autoModeTimeoutId = null; } const currentPlayer = playerTeam[activePairIndex]; const currentOpponent = opponentTeam[activePairIndex]; if (isPlayerCharacterTurn) { if (!currentPlayer || currentPlayer.currentHp <= 0) { logMessage(`${currentPlayer?.name || 'Player character'} is defeated, skipping turn.`, 'info-action'); isPlayerCharacterTurn = false; prepareNextTurn(); return; } if (isAutoMode) { autoModeTimeoutId = setTimeout(playerAutoAction, AUTO_MODE_DELAY); } } else { if (!currentOpponent || currentOpponent.currentHp <= 0) { logMessage(`${currentOpponent?.name || 'Opponent character'} is defeated, skipping turn.`, 'info-action'); advanceToNextPair(); return; } autoModeTimeoutId = setTimeout(opponentTurnAI, AUTO_MODE_DELAY / 1.5); } }
+        function performAction(actionType) { if (!isPlayerCharacterTurn || gameState !== 'BATTLE' || isAutoMode || activePairIndex === -1 || wildcardDecisionPending) return; if ((actionType === 'attack_all' || actionType === 'heal_all') && playerAoEUsedThisCycle) { logMessage("AoE action already used this cycle!", "info-action"); return; } const playerChar = playerTeam[activePairIndex]; if (playerChar.currentHp <= 0) return; executeAction(playerChar, playerTeam, opponentTeam, actionType, 'player'); }
+        function playerAutoAction() { if (!isPlayerCharacterTurn || gameState !== 'BATTLE' || !isAutoMode || activePairIndex === -1 || wildcardDecisionPending) { autoModeTimeoutId=null; return; } const playerChar = playerTeam[activePairIndex]; if (playerChar.currentHp <= 0) { prepareNextTurn(); return; } const actionType = chooseAIAction(playerChar, playerTeam, opponentTeam, playerAoEUsedThisCycle); executeAction(playerChar, playerTeam, opponentTeam, actionType, 'player'); }
+        function opponentTurnAI() { if (isPlayerCharacterTurn || gameState !== 'BATTLE' || activePairIndex === -1 || wildcardDecisionPending) { autoModeTimeoutId=null; return; } const opponentChar = opponentTeam[activePairIndex]; if (opponentChar.currentHp <= 0) { prepareNextTurn(); return; } const actionType = chooseAIAction(opponentChar, opponentTeam, playerTeam, opponentAoEUsedThisCycle); executeAction(opponentChar, opponentTeam, playerTeam, actionType, 'opponent'); }
+        function chooseAIAction(actor, actorTeam, targetTeam, aoeUsed) { const potentialTargetIndex = findNextLivingIndex(targetTeam, activePairIndex); const hpPercent = (actor.currentHp / actor.maxHp); const actionChoice = Math.random(); const canUseAoE = !aoeUsed; if (canUseAoE && actorTeam.filter(a => a && a.currentHp > 0 && a.currentHp < a.maxHp * 0.6).length >= 2 && actionChoice < 0.25) { return 'heal_all'; } if (hpPercent < 0.4 && actionChoice < 0.5) { return 'heal'; } if (canUseAoE && targetTeam.filter(t => t && t.currentHp > 0 && t.currentHp < t.maxHp * 0.5).length >= 2 && actionChoice < 0.3) { return 'attack_all'; } if (potentialTargetIndex === -1) { return (hpPercent < 0.9) ? 'heal' : 'defend'; } if (actor.ability === 'REVIVAL' && !actor.revivalUsed && hpPercent < 0.2 && actionChoice < 0.6) { return 'defend'; } if (actionChoice < 0.10) { return 'defend'; } else if (actionChoice < 0.65) { return 'high_attack'; } else { return 'low_attack'; } }
+        function executeAction(actor, actorTeam, targetTeam, actionType, actorRole) { if (!actor || actor.currentHp <= 0 || wildcardDecisionPending) return; let target = null; let targetIndex = -1; actor.isDefending = false; actor.tempDefense = 0; let message = ''; let messageClass = actorRole === 'player' ? 'player-action' : 'opponent-action'; let isAoE = false; let bubbleMsg = ''; if (actionType === 'attack_all' || actionType === 'heal_all') { isAoE = true; if (actorRole === 'player') playerAoEUsedThisCycle = true; else opponentAoEUsedThisCycle = true; bubbleMsg = actionType === 'attack_all' ? 'Attack All!' : 'Heal All!'; showActionBubble(actorRole, activePairIndex, bubbleMsg); } switch (actionType) { case 'high_attack': case 'low_attack': targetIndex = findNextLivingIndex(targetTeam, activePairIndex); if (targetIndex === -1) { logMessage(`${actor.name} has no valid targets!`, 'info-action'); advanceTurn(); return; } target = targetTeam[targetIndex]; const attackPower = (actionType === 'high_attack' ? actor.highAtk : actor.lowAtk) + actor.tempAttackBoost; message = `${actor.name} uses ${actionType === 'high_attack' ? 'High Attack' : 'Low Attack'} on ${target.name}.`; logMessage(message, messageClass); resolveAttack(actor, target, attackPower, targetTeam); break; case 'attack_all': message = `${actor.name} uses Attack ALL!`; logMessage(message, messageClass); const aoeAttackPwr = Math.max(1, Math.round(((actor.highAtk + actor.lowAtk) / 2) * AOE_DAMAGE_MODIFIER)) + actor.tempAttackBoost; targetTeam.forEach(opp => { if (opp && opp.currentHp > 0) { resolveAttack(actor, opp, aoeAttackPwr, targetTeam); } }); break; case 'defend': actor.isDefending = true; actor.tempDefense = Math.round(actor.defense * 0.75); message = `${actor.name} defends! (Defense +${actor.tempDefense})`; messageClass = 'defense-action'; logMessage(message, messageClass); showActionBubble(actorRole, activePairIndex, 'Defending!'); break; case 'heal': const healAmount = actor.healPower; const actualHeal = Math.min(healAmount, actor.maxHp - actor.currentHp); actor.currentHp += actualHeal; message = `${actor.name} heals self for ${actualHeal} HP.`; messageClass = 'heal-action'; logMessage(message, messageClass); showActionBubble(actorRole, activePairIndex, `Heal +${actualHeal}`); break; case 'heal_all': message = `${actor.name} uses Heal ALL!`; logMessage(message, messageClass); actorTeam.forEach(ally => { if (ally && ally.currentHp > 0) { const allyHealPwr = Math.round(actor.healPower * AOE_HEAL_MULTIPLIER); const actualAllyHeal = Math.min(allyHealPwr, ally.maxHp - ally.currentHp); if (actualAllyHeal > 0) { ally.currentHp += actualAllyHeal; logMessage(` ${ally.name} healed for ${actualAllyHeal} HP.`, 'heal-action'); } } }); break; } updateBattleUI(); if (checkGameOver()) return; advanceTurn(); }
+        function resolveAttack(attacker, defender, attackPower, defenderTeam) {
+            const defenseToUse = defender.defense + defender.tempDefense;
+            let damage = Math.max(1, attackPower - defenseToUse);
+            defender.currentHp = Math.max(0, defender.currentHp - damage);
+            defender.isDefending = false; defender.tempDefense = 0;
+            logMessage(`${attacker.name} deals ${damage} damage to ${defender.name}. (${defender.name} HP: ${defender.currentHp}/${defender.maxHp})`, playerTeam.includes(attacker) ? 'player-action' : 'opponent-action');
+            if (defender.currentHp <= 0) {
+                if (defender.ability === 'REVIVAL' && !defender.revivalUsed) {
+                    defender.revivalUsed = true;
+                    const reviveHp = Math.max(1, Math.round(defender.maxHp * REVIVAL_HP_PERCENT));
+                    defender.currentHp = reviveHp;
+                    logMessage(`${defender.name}'s Revival activates! Back with ${reviveHp} HP!`, 'ability-proc');
+                    showActionBubble(defenderTeam === playerTeam ? 'player' : 'opponent', defenderTeam.findIndex(c => c?.id === defender.id), 'Revived!');
+                    updateBattleUI();
+                } else {
+                    // Character is permanently defeated, check for wildcards
+                    handleCharacterDefeat(defender, defenderTeam);
+                }
+            } else if (damage > 0 && defender.ability === 'GUARDIAN') {
+                const healTargets = defenderTeam.filter(ally => ally && ally !== defender && ally.currentHp > 0 && ally.currentHp < ally.maxHp);
+                if (healTargets.length > 0) {
+                    const healTarget = healTargets[Math.floor(Math.random() * healTargets.length)];
+                    const actualHeal = Math.min(GUARDIAN_HEAL_AMOUNT, healTarget.maxHp - healTarget.currentHp);
+                    if (actualHeal > 0) {
+                        healTarget.currentHp += actualHeal;
+                        logMessage(`${defender.name}'s Guardian heals ${healTarget.name} for ${actualHeal} HP!`, 'ability-proc');
+                        showActionBubble(defenderTeam === playerTeam ? 'player' : 'opponent', defenderTeam.findIndex(c => c?.id === healTarget.id), `Healed +${actualHeal}!`);
+                    }
+                }
+            }
+        }
+
+        // Handle Defeat & Wildcard (Updated for separate counts)
+        function handleCharacterDefeat(defeatedChar, defeatedTeam) {
+            const isPlayer = (defeatedTeam === playerTeam);
+            const wildcardsLeft = isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining;
+
+            if (wildcardsLeft <= 0) {
+                logMessage(`${defeatedChar.name} has been permanently defeated! (No wildcards left for ${isPlayer ? 'Player' : 'Opponent'})`, 'info-action');
+                showActionBubble(isPlayer ? 'player' : 'opponent', defeatedTeam.findIndex(c => c?.id === defeatedChar.id), 'Defeated!');
+                // Mark as null or similar if needed, but just updating UI might be enough
+                const defeatedIndex = defeatedTeam.findIndex(c => c?.id === defeatedChar.id);
+                if(defeatedIndex !== -1) {
+                    // Optional: Mark as truly defeated if needed for other logic
+                    // defeatedTeam[defeatedIndex].trulyDefeated = true;
+                }
+                updateBattleUI();
+                // Check game over *after* handling defeat fully without wildcard
+                if (checkGameOver()) return;
+                // If game not over, try to advance turn immediately as no wildcard action is taken
+                // Need to consider if this was the last action of the turn sequence
+                 if (!isPlayerCharacterTurn) { // If it was the opponent's turn that caused this defeat
+                     advanceToNextPair(); // Move to the next player pair immediately
+                 } else { // If it was the player's turn that caused this defeat
+                     isPlayerCharacterTurn = false; // Set to opponent's turn for the current pair
+                     prepareNextTurn();
+                 }
+                return;
+            }
+
+            logMessage(`${defeatedChar.name} has been defeated! ${isPlayer ? 'Player' : 'Opponent'} Wildcard triggered! (${wildcardsLeft} left)`, 'wildcard-info');
+            showActionBubble(isPlayer ? 'player' : 'opponent', defeatedTeam.findIndex(c => c?.id === defeatedChar.id), 'Defeated!');
+            wildcardDecisionPending = true;
+            wildcardTeamRef = defeatedTeam;
+            wildcardDefeatedIndex = defeatedTeam.findIndex(c => c?.id === defeatedChar.id);
+
+            if (wildcardDefeatedIndex === -1) {
+                console.error("Defeated character index not found!");
+                completeWildcardChoice(); // Failsafe
+                return;
+            }
+
+            if (isPlayer) {
+                promptPlayerWildcardChoice();
+            } else {
+                 // Use a slight delay for AI choice to feel less instant
+                setTimeout(chooseAIWildcard, AUTO_MODE_DELAY / 2);
+            }
+            updateBattleUI(); // Show defeated state immediately
+        }
+
+        function promptPlayerWildcardChoice() {
+            wildcardChoiceArea.style.display = 'block';
+            actionButtonsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+            autoModeButton.disabled = true;
+            wildcardChoiceCount.textContent = playerWildcardsRemaining; // Show player's remaining
+            boostAtkTargetSelect.innerHTML = ''; boostHpTargetSelect.innerHTML = '';
+            let livingTeammates = false;
+            playerTeam.forEach((ally, index) => {
+                if (ally && ally.currentHp > 0) {
+                    livingTeammates = true;
+                    const optionAtk = document.createElement('option'); optionAtk.value = index; optionAtk.textContent = ally.name; boostAtkTargetSelect.appendChild(optionAtk);
+                    const optionHp = document.createElement('option'); optionHp.value = index; optionHp.textContent = ally.name; boostHpTargetSelect.appendChild(optionHp);
+                }
+            });
+            wildcardBoostAtkSelectionSpan.style.display = livingTeammates ? 'inline-block' : 'none'; btnWildcardBoostAtk.style.display = livingTeammates ? 'inline-block' : 'none'; btnWildcardBoostAtk.disabled = !livingTeammates;
+            wildcardBoostHpSelectionSpan.style.display = livingTeammates ? 'inline-block' : 'none'; btnWildcardBoostHp.style.display = livingTeammates ? 'inline-block' : 'none'; btnWildcardBoostHp.disabled = !livingTeammates;
+            const availableReplacements = characterPool.filter(c => !playerTeam.some(p => p?.id === c.id) && !opponentTeam.some(o => o?.id === c.id));
+            btnWildcardAdd.disabled = availableReplacements.length === 0; btnWildcardAdd.title = availableReplacements.length === 0 ? "No characters left in pool!" : "";
+            if (availableReplacements.length === 0) logMessage("No characters left in pool to add.", "info-action");
+            if (availableReplacements.length === 0 && !livingTeammates) {
+                logMessage("No valid wildcard options available for Player.", "info-action");
+                 // Automatically complete if no options
+                 setTimeout(completeWildcardChoice, 500); // Add slight delay to read message
+            }
+        }
+
+        function chooseAIWildcard() {
+            const livingTeammates = opponentTeam.filter(ally => ally && ally.currentHp > 0);
+            const numLiving = livingTeammates.length;
+            const availableReplacements = characterPool.filter(c => !playerTeam.some(p => p?.id === c.id) && !opponentTeam.some(o => o?.id === c.id)).length;
+            let choice = 'add'; let targetIndex = -1;
+
+            if (availableReplacements === 0 && numLiving === 0) {
+                logMessage("Opponent has no valid wildcard options.", "info-action");
+                choice = 'none';
+            } else if (availableReplacements === 0) {
+                choice = Math.random() < 0.5 ? 'boost_atk' : 'boost_hp';
+            } else if (numLiving === 0) {
+                choice = 'add';
+            } else {
+                // Simple AI: Prefer add if many are dead, otherwise boost HP if someone is low, else boost atk or add randomly
+                const targets = opponentTeam.map((ally, index) => ({ ally, index })).filter(item => item.ally && item.ally.currentHp > 0);
+                targetIndex = targets[Math.floor(Math.random() * targets.length)].index;
+                const targetChar = opponentTeam[targetIndex];
+                const rand = Math.random();
+
+                if (opponentTeam.filter(o => o && o.currentHp > 0).length < PLAYER_TEAM_SIZE -1 && rand < 0.6) { // If 2+ are dead, lean towards adding
+                     choice = 'add';
+                } else if (targetChar.currentHp < targetChar.maxHp * 0.6 && rand < 0.4) {
+                    choice = 'boost_hp';
+                } else if (rand < 0.7) { // Slightly favor Atk boost over Add otherwise
+                    choice = 'boost_atk';
+                } else {
+                    choice = 'add';
+                }
+                // Ensure choice is valid if others aren't possible
+                 if (choice === 'boost_atk' && numLiving === 0) choice = 'add';
+                 if (choice === 'boost_hp' && numLiving === 0) choice = 'add';
+                 if (choice === 'add' && availableReplacements === 0) choice = (numLiving > 0) ? (Math.random() < 0.5 ? 'boost_atk' : 'boost_hp') : 'none';
+            }
+
+            logMessage(`Opponent AI considers wildcard... (${opponentWildcardsRemaining} left)`, 'wildcard-info');
+
+            if (choice === 'add') {
+                executeWildcardAdd(opponentTeam, wildcardDefeatedIndex);
+            } else if (choice === 'boost_atk') {
+                 if (targetIndex === -1 && numLiving > 0) { // Recalculate target if needed
+                     const targets = opponentTeam.map((ally, index) => ({ ally, index })).filter(item => item.ally && item.ally.currentHp > 0);
+                     targetIndex = targets[Math.floor(Math.random() * targets.length)].index;
+                 }
+                 if (targetIndex !== -1) executeWildcardBoostAtk(opponentTeam, targetIndex);
+                 else { logMessage("Opponent AI failed to find boost target.", "info-action"); completeWildcardChoice(); } // Failsafe
+            } else if (choice === 'boost_hp') {
+                 if (targetIndex === -1 && numLiving > 0) { // Recalculate target if needed
+                      const targets = opponentTeam.map((ally, index) => ({ ally, index })).filter(item => item.ally && item.ally.currentHp > 0);
+                      targetIndex = targets[Math.floor(Math.random() * targets.length)].index;
+                 }
+                if (targetIndex !== -1) executeWildcardBoostHp(opponentTeam, targetIndex);
+                else { logMessage("Opponent AI failed to find boost target.", "info-action"); completeWildcardChoice(); } // Failsafe
+            } else {
+                 logMessage("Opponent takes no wildcard action.", "info-action");
+                 completeWildcardChoice();
+            }
+        }
+
+        function executeWildcardAdd(team, replaceIndex) {
+             const isPlayer = (team === playerTeam);
+             const wildcardsLeft = isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining;
+             if (wildcardsLeft <= 0) { completeWildcardChoice(); return; }
+
+             const currentIds = playerTeam.map(c => c?.id).filter(Boolean).concat(opponentTeam.map(c => c?.id).filter(Boolean));
+             const availablePool = characterPool.filter(c => !currentIds.includes(c.id));
+
+             if (availablePool.length > 0) {
+                 const newCharData = availablePool[Math.floor(Math.random() * availablePool.length)];
+                 const newChar = { ...newCharData };
+                 generateStats(newChar, null); // No ability for wildcard characters
+                 team[replaceIndex] = newChar;
+                 if(isPlayer) playerWildcardsRemaining--; else opponentWildcardsRemaining--;
+                 logMessage(`${isPlayer ? 'Player' : 'Opponent'} adds ${newChar.name} (No Ability) to the battle!`, 'wildcard-info');
+                 logMessage(`WILD CARD USED by ${isPlayer ? 'Player' : 'Opponent'}! (${isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining} left)`, 'wildcard-info');
+             } else {
+                 logMessage(`Could not add new character for ${isPlayer ? 'Player' : 'Opponent'}, pool empty. Slot remains empty.`, "info-action");
+                 team[replaceIndex] = null; // Mark slot as empty if no replacement available
+                 // Don't decrement wildcard count if no action was taken
+             }
+             completeWildcardChoice();
+         }
+
+        function executeWildcardBoostAtk(team, targetIndex) {
+             const isPlayer = (team === playerTeam);
+             const wildcardsLeft = isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining;
+             if (wildcardsLeft <= 0) { completeWildcardChoice(); return; }
+
+             if (targetIndex >= 0 && targetIndex < team.length && team[targetIndex] && team[targetIndex].currentHp > 0) {
+                 const targetChar = team[targetIndex];
+                 targetChar.tempAttackBoost += BOOST_ATTACK_AMOUNT;
+                 targetChar.boostTurnsRemaining = BOOST_DURATION; // Reset or set duration
+                 if(isPlayer) playerWildcardsRemaining--; else opponentWildcardsRemaining--;
+                 logMessage(`${targetChar.name} receives Atk boost! (+${BOOST_ATTACK_AMOUNT} for ${BOOST_DURATION} rounds)`, 'wildcard-info');
+                 logMessage(`WILD CARD USED by ${isPlayer ? 'Player' : 'Opponent'}! (${isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining} left)`, 'wildcard-info');
+             } else {
+                 logMessage(`Invalid target for Atk boost for ${isPlayer ? 'Player' : 'Opponent'}.`, "info-action");
+                  // Don't decrement wildcard count if no action was taken
+             }
+             completeWildcardChoice();
+         }
+
+        function executeWildcardBoostHp(team, targetIndex) {
+             const isPlayer = (team === playerTeam);
+             const wildcardsLeft = isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining;
+             if (wildcardsLeft <= 0) { completeWildcardChoice(); return; }
+
+             if (targetIndex >= 0 && targetIndex < team.length && team[targetIndex] && team[targetIndex].currentHp > 0) {
+                 const targetChar = team[targetIndex];
+                 targetChar.maxHp += BOOST_HP_AMOUNT;
+                 targetChar.currentHp += BOOST_HP_AMOUNT; // Heal by the boosted amount too
+                 if(isPlayer) playerWildcardsRemaining--; else opponentWildcardsRemaining--;
+                 logMessage(`${targetChar.name} receives HP boost! (+${BOOST_HP_AMOUNT} Max & Current HP)`, 'wildcard-info');
+                 logMessage(`WILD CARD USED by ${isPlayer ? 'Player' : 'Opponent'}! (${isPlayer ? playerWildcardsRemaining : opponentWildcardsRemaining} left)`, 'wildcard-info');
+             } else {
+                 logMessage(`Invalid target for HP boost for ${isPlayer ? 'Player' : 'Opponent'}.`, "info-action");
+                  // Don't decrement wildcard count if no action was taken
+             }
+             completeWildcardChoice();
+         }
+
+        function completeWildcardChoice() {
+            wildcardDecisionPending = false;
+            wildcardChoiceArea.style.display = 'none';
+            wildcardTeamRef = null;
+            wildcardDefeatedIndex = -1;
+            updateBattleUI(); // Update UI immediately after choice
+            // Check game over *after* wildcard resolution
+            if (checkGameOver()) return;
+            // Crucial: Determine whose turn it should be *next*
+            // If the player made the choice, it's now the opponent's turn in the *same* pair index.
+            // If the AI made the choice, we advance to the *next* pair index (player's turn).
+            if (isPlayerCharacterTurn) { // Player just finished their wildcard action
+                 isPlayerCharacterTurn = false; // Set to opponent's turn in the *same* pair
+                 prepareNextTurn();
+             } else { // Opponent just finished their wildcard action
+                 advanceToNextPair(); // Move to next pair, player's turn
+             }
+        }
+
+        function advanceTurn() {
+            if (wildcardDecisionPending || gameState !== 'BATTLE') return;
+            if (isPlayerCharacterTurn) {
+                isPlayerCharacterTurn = false; // Move to opponent's turn within the same pair
+            } else {
+                advanceToNextPair(); // Opponent finished, move to next pair
+                return; // advanceToNextPair calls prepareNextTurn
+            }
+            prepareNextTurn();
+        }
+
+        function advanceToNextPair() {
+            const oldPairIndex = activePairIndex;
+            activePairIndex = (activePairIndex + 1) % PLAYER_TEAM_SIZE;
+            isPlayerCharacterTurn = true; // Next pair always starts with player
+
+            if (activePairIndex === 0) { // Cycled back to the start
+                currentRound++;
+                logMessage(`--- Round ${currentRound} Start ---`, 'round-start');
+                playerAoEUsedThisCycle = false; // Reset AoE usage
+                opponentAoEUsedThisCycle = false;
+                // Decrement boost timers and clear defense/temp stats
+                playerTeam.forEach(p => { if(p) { if(p.boostTurnsRemaining > 0) { p.boostTurnsRemaining--; if(p.boostTurnsRemaining <= 0) p.tempAttackBoost = 0;} p.isDefending = false; p.tempDefense = 0;} });
+                opponentTeam.forEach(o => { if(o) { if(o.boostTurnsRemaining > 0) { o.boostTurnsRemaining--; if(o.boostTurnsRemaining <= 0) o.tempAttackBoost = 0;} o.isDefending = false; o.tempDefense = 0;} });
+            } else {
+                logMessage(`--- Next Pair (Index ${activePairIndex}) ---`, 'turn-change');
+            }
+            prepareNextTurn(); // Prepare the turn for the new active pair
+        }
+        function checkGameOver() {
+             const playerDefeated = playerTeam.every(char => !char || char.currentHp <= 0);
+             const opponentDefeated = opponentTeam.every(char => !char || char.currentHp <= 0);
+
+             if (opponentDefeated || playerDefeated) {
+                 if (isAutoMode) { toggleAutoMode(); } // Turn off auto mode
+                 if (autoModeTimeoutId) clearTimeout(autoModeTimeoutId); autoModeTimeoutId = null;
+                 wildcardDecisionPending = false; wildcardChoiceArea.style.display = 'none';
+                 setGameState('GAME_OVER');
+                 if (opponentDefeated && !playerDefeated) { // Player wins
+                     gameOverMessage.textContent = `You Win in Round ${currentRound}!`;
+                     gameOverMessage.className = 'win';
+                     logMessage("Congratulations! You defeated the opponent team!", "info-action");
+                 } else if (playerDefeated && !opponentDefeated) { // Opponent wins
+                     gameOverMessage.textContent = `You Lose in Round ${currentRound}.`;
+                     gameOverMessage.className = 'lose';
+                     logMessage("Your team has been defeated.", "info-action");
+                 } else { // Draw (both defeated simultaneously - unlikely but possible)
+                     gameOverMessage.textContent = `Draw in Round ${currentRound}!`;
+                     gameOverMessage.className = 'info-action'; // Or a neutral color
+                     logMessage("Both teams were defeated simultaneously!", "info-action");
+                 }
+                 updateUI(); // Show game over message and button
+                 return true;
+             }
+             return false;
+         }
+
+        // --- UI Updates ---
+        function setGameState(newState) { gameState = newState; updateUI(); }
+        function updateUI() {
+            loadingMessage.style.display = 'none'; battleArea.style.display = 'none'; gameOverMessage.style.display = 'none'; restartButton.style.display = 'none'; wildcardChoiceArea.style.display = 'none'; statModal.classList.remove('visible'); instructionsModal.classList.remove('visible'); // Hide instructions modal too
+            // instructionsArea.style.display = 'none'; // Removed original instructions area
+
+            selectionIndexArea.style.display = (gameState === 'CHARACTER_SELECTION') ? 'block' : 'none';
+            selectionArea.style.display = (gameState === 'CHARACTER_SELECTION' && !isIndexViewVisible) ? 'block' : 'none';
+            indexArea.style.display = (gameState === 'CHARACTER_SELECTION' && isIndexViewVisible) ? 'block' : 'none';
+
+            switch (gameState) {
+                case 'LOADING': loadingMessage.style.display = 'block'; selectionIndexArea.style.display = 'none'; break;
+                case 'CHARACTER_SELECTION': if(!isIndexViewVisible) setupCharacterSelection(); else populateCharacterIndex(); break;
+                case 'BATTLE':
+                    battleArea.style.display = 'block';
+                    updateBattleUI(); // Handles round/wildcard display
+                    if (wildcardDecisionPending && wildcardTeamRef === playerTeam) {
+                        wildcardChoiceArea.style.display = 'block';
+                        wildcardChoiceCount.textContent = playerWildcardsRemaining;
+                    }
+                    break;
+                case 'GAME_OVER':
+                    battleArea.style.display = 'block'; // Keep battle area visible
+                    gameOverMessage.style.display = 'block';
+                    restartButton.style.display = 'block';
+                    updateBattleUI(); // Update final state of teams
+                    actionButtonsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true); // Disable actions
+                    autoModeButton.disabled = true; // Disable auto mode button
+                    break;
+            }
+        }
+        function updateBattleUI() {
+             if (gameState !== 'BATTLE' && gameState !== 'GAME_OVER') return;
+             roundIndicator.textContent = `Round: ${currentRound}`;
+             wildcardCountDisplaySpan.textContent = `Wildcards: P: ${playerWildcardsRemaining} | O: ${opponentWildcardsRemaining}`; // Updated display
+
+             playerTeamDisplay.innerHTML = ''; opponentTeamDisplay.innerHTML = '';
+             playerTeam.forEach((char, index) => { if(char){const isActive = isPlayerCharacterTurn && index === activePairIndex && gameState === 'BATTLE'; playerTeamDisplay.appendChild(createBattleCard(char, isActive, char.currentHp <= 0, char.isDefending, index, 'player'));}});
+             opponentTeam.forEach((char, index) => { if(char){const isActive = !isPlayerCharacterTurn && index === activePairIndex && gameState === 'BATTLE'; opponentTeamDisplay.appendChild(createBattleCard(char, isActive, char.currentHp <= 0, char.isDefending, index, 'opponent'));}});
+
+             const playerCanAct = isPlayerCharacterTurn && playerTeam[activePairIndex]?.currentHp > 0 && gameState === 'BATTLE' && !isAutoMode && !wildcardDecisionPending;
+             actionButtonsContainer.querySelectorAll('button').forEach(btn => { btn.disabled = !playerCanAct; });
+             btnAttackAll.disabled = !playerCanAct || playerAoEUsedThisCycle;
+             btnHealAll.disabled = !playerCanAct || playerAoEUsedThisCycle;
+             autoModeButton.disabled = gameState === 'GAME_OVER' || wildcardDecisionPending;
+
+             // Update Log
+             gameLog.innerHTML = logMessages.map(m => `<p class="${m.cssClass}">${m.text}</p>`).join('');
+             gameLog.scrollTop = gameLog.scrollHeight;
+         }
+        function createBattleCard(character, isActive, isDefeated, isDefending, index, teamType) { const card = document.createElement('div'); card.classList.add('battle-character-card'); card.dataset.team = teamType; card.dataset.index = index; if (isActive && !isDefeated) card.classList.add('active-turn'); if (isDefeated) card.classList.add('defeated'); else { card.addEventListener('click', () => showStatsModal(teamType, index, true)); } if (isDefending && !isDefeated) card.classList.add('defending'); if (character.boostTurnsRemaining > 0 && !isDefeated) card.classList.add('boosted'); const hpPercent = character.maxHp > 0 ? (character.currentHp / character.maxHp) * 100 : 0; let hpBarClass = 'hp-bar'; if (hpPercent < 25) hpBarClass += ' critical'; else if (hpPercent < 50) hpBarClass += ' low'; let abilityText = 'None'; let abilityDesc = 'No special ability.'; let abilityClass = 'ability-indicator none'; if (character.ability && ABILITIES[character.ability]) { abilityText = ABILITIES[character.ability].name; abilityDesc = ABILITIES[character.ability].description; abilityClass = 'ability-indicator'; if (character.ability === 'REVIVAL' && character.revivalUsed) { abilityClass += ' used'; abilityText += " (Used)"; } } card.innerHTML = ` <div class="defense-boost-indicator" title="Defending">+${character.tempDefense || ''}</div> <div class="attack-boost-indicator" title="Attack Boost (${character.boostTurnsRemaining} Rnds)">+${character.tempAttackBoost || ''}</div> <img src="${API_BASE_URL}/characters/${character.id}/icon" alt="${character.name}" onerror="this.style.opacity=0.5;"> <div class="char-name">${character.name}</div> <div class="hp-bar-container"><div class="${hpBarClass}" style="width: ${hpPercent}%;"></div></div> <div class="hp-text">${character.currentHp} / ${character.maxHp}</div> <div class="${abilityClass}" title="${abilityDesc}">${abilityText}</div> <div class="action-bubble"></div> `; return card; }
+        function logMessage(message, cssClass = '') { console.log(message); logMessages.push({ text: message, cssClass: cssClass }); if (logMessages.length > 100) { logMessages.shift(); } if (gameState === 'BATTLE' || gameState === 'GAME_OVER') { requestAnimationFrame(() => { // Ensure log updates smoothly
+                 gameLog.innerHTML = logMessages.map(m => `<p class="${m.cssClass}">${m.text}</p>`).join(''); gameLog.scrollTop = gameLog.scrollHeight; }); } }
+        function toggleAutoMode() { if (gameState !== 'BATTLE' || wildcardDecisionPending) return; isAutoMode = !isAutoMode; if (autoModeTimeoutId) { clearTimeout(autoModeTimeoutId); autoModeTimeoutId = null; } updateAutoModeButton(); if (isAutoMode) { logMessage("Auto Mode Enabled.", "info-action"); actionButtonsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true); if (isPlayerCharacterTurn && !wildcardDecisionPending) { prepareNextTurn(); } } else { logMessage("Auto Mode Disabled.", "info-action"); updateBattleUI(); } }
+        function updateAutoModeButton() { if (isAutoMode) { autoModeButton.textContent = "Auto Mode: ON"; autoModeButton.classList.add('active'); } else { autoModeButton.textContent = "Auto Mode: OFF"; autoModeButton.classList.remove('active'); } }
+
+        // Stat Modal Logic
+        function showStatsModalFromIndex(poolIndex) { const characterData = characterPool[poolIndex]; if (!characterData) return; const exampleStats = generateExampleStats(characterData); populateStatModal(characterData, exampleStats, false); statModal.classList.add('visible'); }
+        function showStatsModal(teamType, battleIndex, isInGame = true) { if (wildcardDecisionPending) return; const team = (teamType === 'player') ? playerTeam : opponentTeam; const character = team[battleIndex]; if (!character) return; populateStatModal(character, character, isInGame); statModal.classList.add('visible'); }
+        function populateStatModal(baseData, statData, isInGame) { statModalSubtitle.textContent = isInGame ? "(Current In-Game Stats)" : "(Example Base Stats)"; document.getElementById('stat-modal-name').textContent = baseData.name || 'Unknown'; document.getElementById('stat-modal-element').textContent = baseData.vision || 'N/A'; document.getElementById('stat-modal-hp').textContent = `${statData.currentHp} / ${statData.maxHp}`; const currentAtkBoost = isInGame ? statData.tempAttackBoost : 0; document.getElementById('stat-modal-attack').textContent = `Low: ${statData.lowAtk + currentAtkBoost}, High: ${statData.highAtk + currentAtkBoost}${currentAtkBoost > 0 ? ` (+${currentAtkBoost} Boost)` : ''}`; document.getElementById('stat-modal-defense').textContent = `${statData.defense}`; document.getElementById('stat-modal-heal').textContent = `${statData.healPower}`; const abilityKey = isInGame ? statData.ability : null; const abilityName = (abilityKey && ABILITIES[abilityKey]) ? ABILITIES[abilityKey].name : 'None'; const abilityDesc = (abilityKey && ABILITIES[abilityKey]) ? ABILITIES[abilityKey].description : 'No special ability.'; document.getElementById('stat-modal-ability-name').textContent = abilityName; document.getElementById('stat-modal-ability-desc').textContent = abilityDesc; document.getElementById('stat-modal-atk-boost').textContent = (isInGame && statData.tempAttackBoost > 0) ? `+${statData.tempAttackBoost} (${statData.boostTurnsRemaining} rounds left)` : 'None'; document.getElementById('stat-modal-def-boost').textContent = (isInGame && statData.isDefending) ? `+${statData.tempDefense}` : 'None'; }
+        function hideStatsModal() { statModal.classList.remove('visible'); }
+        // Action Bubble Logic
+        function showActionBubble(teamType, index, message, duration = BUBBLE_DURATION) { const teamDisplay = (teamType === 'player') ? playerTeamDisplay : opponentTeamDisplay; const cardElement = teamDisplay.querySelector(`.battle-character-card[data-index="${index}"]`); if (!cardElement) return; const bubble = cardElement.querySelector('.action-bubble'); if (!bubble) return; const bubbleKey = `${teamType}-${index}`; if (bubbleTimeoutIds[bubbleKey]) { clearTimeout(bubbleTimeoutIds[bubbleKey]); } bubble.textContent = message; bubble.style.display = 'block'; bubbleTimeoutIds[bubbleKey] = setTimeout(() => { bubble.style.display = 'none'; delete bubbleTimeoutIds[bubbleKey]; }, duration); }
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCharacterData();
+            startBattleButton.addEventListener('click', startGame);
+            resetSelectionButton.addEventListener('click', resetSelection);
+            restartButton.addEventListener('click', resetGame);
+            autoModeButton.addEventListener('click', toggleAutoMode);
+
+            // Instruction Modal Triggers
+            instructionsButton.addEventListener('click', showInstructionsModal);
+            instructionsButtonIdx.addEventListener('click', showInstructionsModal); // Same function for index view button
+            instructionsModalClose.addEventListener('click', hideInstructionsModal);
+            instructionsModal.addEventListener('click', (event) => { if (event.target === instructionsModal) { hideInstructionsModal(); } }); // Close on bg click
+
+            // View Toggles
+            selectionViewToggleButton.addEventListener('click', () => toggleIndexView(true));
+            indexViewToggleButton.addEventListener('click', () => toggleIndexView(false));
+
+            // Battle Actions
+            document.getElementById('btn-high-attack').addEventListener('click', () => performAction('high_attack')); document.getElementById('btn-low-attack').addEventListener('click', () => performAction('low_attack')); document.getElementById('btn-defend').addEventListener('click', () => performAction('defend')); document.getElementById('btn-heal').addEventListener('click', () => performAction('heal')); btnAttackAll.addEventListener('click', () => performAction('attack_all')); btnHealAll.addEventListener('click', () => performAction('heal_all'));
+
+            // Wildcard Actions
+            btnWildcardAdd.addEventListener('click', () => executeWildcardAdd(playerTeam, wildcardDefeatedIndex)); btnWildcardBoostAtk.addEventListener('click', () => { const selectedIndex = parseInt(boostAtkTargetSelect.value); executeWildcardBoostAtk(playerTeam, selectedIndex); }); btnWildcardBoostHp.addEventListener('click', () => { const selectedIndex = parseInt(boostHpTargetSelect.value); executeWildcardBoostHp(playerTeam, selectedIndex); });
+
+            // Stat Modal Triggers
+            statModalCloseButton.addEventListener('click', hideStatsModal);
+            statModal.addEventListener('click', (event) => { if (event.target === statModal) { hideStatsModal(); } }); // Close on bg click
+        });
+    </script>
+</body>
+</html>
